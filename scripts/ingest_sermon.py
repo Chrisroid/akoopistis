@@ -20,6 +20,13 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+try:
+    import boto3
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env.local")
+except ImportError:
+    boto3 = None
+
 
 def get_ytdlp_cmd():
     """Find yt-dlp executable or fallback to python -m yt_dlp."""
@@ -172,6 +179,50 @@ def process_audio(
             return False, actual_output
 
 
+def upload_to_r2(local_path: Path, object_name: str = None) -> str:
+    """Upload audio file to Cloudflare R2 and return the public URL."""
+    if not boto3:
+        print("[WARN] boto3 is not installed; skipping R2 upload.")
+        return f"/audio/{local_path.name}"
+
+    endpoint = os.getenv("R2_ENDPOINT_URL")
+    key_id = os.getenv("R2_ACCESS_KEY_ID")
+    secret = os.getenv("R2_SECRET_ACCESS_KEY")
+    bucket = os.getenv("R2_BUCKET_NAME")
+    public_prefix = os.getenv("R2_PUBLIC_URL_PREFIX", "").rstrip("/")
+
+    if not all([endpoint, key_id, secret, bucket]):
+        print("[WARN] Missing R2 credentials in .env.local; skipping R2 upload.")
+        return f"/audio/{local_path.name}"
+
+    if not object_name:
+        object_name = local_path.name
+
+    print(f"[*] Uploading {local_path.name} to Cloudflare R2 bucket '{bucket}'...")
+    try:
+        s3 = boto3.client(
+            "s3",
+            endpoint_url=endpoint,
+            aws_access_key_id=key_id,
+            aws_secret_access_key=secret,
+            region_name="auto",
+        )
+        content_type = "audio/mp4" if local_path.suffix.lower() == ".m4a" else "audio/mpeg"
+        s3.upload_file(
+            str(local_path),
+            bucket,
+            object_name,
+            ExtraArgs={"ContentType": content_type}
+        )
+        print(f"[SUCCESS] Uploaded {object_name} to R2!")
+        if public_prefix:
+            return f"{public_prefix}/{object_name}"
+        return f"/audio/{object_name}"
+    except Exception as e:
+        print(f"[ERROR] R2 upload failed: {e}")
+        return f"/audio/{local_path.name}"
+
+
 def update_catalog(sermon_data: dict, catalog_path: Path):
     """Add or update the sermon in data/sermons.json."""
     catalog_path.parent.mkdir(parents=True, exist_ok=True)
@@ -207,6 +258,7 @@ def main():
     parser.add_argument("--series", help="Sermon series name", default="Breakthrough Service")
     parser.add_argument("--speaker", help="Speaker name", default="Pastor Henry Dimoko")
     parser.add_argument("--bitrate", help="Audio bitrate (default: 64k)", default="64k")
+    parser.add_argument("--no-upload", action="store_true", help="Skip automatic R2 upload")
 
     args = parser.parse_args()
 
@@ -256,6 +308,12 @@ def main():
     else:
         parsed_date = datetime.now().strftime("%Y-%m-%d")
 
+    # Upload to Cloudflare R2
+    if not args.no_upload:
+        audio_url = upload_to_r2(final_audio_path, f"{sermon_slug}{final_audio_path.suffix}")
+    else:
+        audio_url = f"/audio/{final_audio_path.name}"
+
     sermon_record = {
         "id": sermon_slug,
         "title": title,
@@ -266,17 +324,19 @@ def main():
         "durationFormatted": format_duration(duration_secs),
         "fileSizeBytes": file_size_bytes,
         "fileSizeFormatted": format_file_size(file_size_bytes),
-        "audioUrl": f"/audio/{final_audio_path.name}",
+        "audioUrl": audio_url,
         "youtubeUrl": meta["webpage_url"],
         "series": args.series,
         "tags": [args.series, "Sermon", "Audio"],
-        "featured": True,
+        "featured": False,
     }
 
     update_catalog(sermon_record, catalog_path)
-    print("\n[COMPLETE] Ingestion completed successfully!")
+    print("\n[COMPLETE] Ingestion and deployment registration completed successfully!")
     print(f"Audio file ready: {final_audio_path}")
+    print(f"Audio R2 URL: {audio_url}")
     print(f"Catalog record registered: {sermon_slug}")
+
 
 
 if __name__ == "__main__":

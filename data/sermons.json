@@ -1,5 +1,65 @@
 [
   {
+    "id": "mid-week-revival-power-over-legions",
+    "title": "Mid-Week Revival: Power Over Legions",
+    "description": "MID-WEEK REVIVAL SERVICE\nDATE: 13/8/2026 \nMINISTERING: HENRY DIMOKO\nBIBLE REFERENCE: mark 5:1-8\n#graceflowministries\n#jesuschrist \n#revivalservice",
+    "speaker": "Pastor Henry Dimoko",
+    "date": "2026-08-14",
+    "duration": 2232,
+    "durationFormatted": "37m",
+    "fileSizeBytes": 13614357,
+    "fileSizeFormatted": "13.0 MB",
+    "audioUrl": "https://pub-17e4bec755dc47afab7567bca3cee675.r2.dev/mid-week-revival-power-over-legions.m4a",
+    "youtubeUrl": "https://www.youtube.com/watch?v=J5LibzweUcU",
+    "series": "Mid-Week Revival",
+    "tags": [
+      "Mid-Week Revival",
+      "Sermon",
+      "Audio"
+    ],
+    "featured": false
+  },
+  {
+    "id": "communion-service-the-altar-of-ebenezer-and-supernatural-vic",
+    "title": "Communion Service: The Altar of Ebenezer and Supernatural Victory",
+    "description": "COMMUNION SERVICE\nDATE: 30/7/2026 \nMINISTERING: HENRY DIMOKIO\nBIBLE REFERENCE:  1 SAM 7:1-12.\n#graceflowministries \n#CommunionService\n#jesus",
+    "speaker": "Pastor Henry Dimoko",
+    "date": "2026-07-31",
+    "duration": 3663,
+    "durationFormatted": "1h 01m",
+    "fileSizeBytes": 22338784,
+    "fileSizeFormatted": "21.3 MB",
+    "audioUrl": "https://pub-17e4bec755dc47afab7567bca3cee675.r2.dev/communion-service-the-altar-of-ebenezer-and-supernatural-vic.m4a",
+    "youtubeUrl": "https://www.youtube.com/watch?v=FIxBnzlBfBA",
+    "series": "Communion Service",
+    "tags": [
+      "Communion Service",
+      "Sermon",
+      "Audio"
+    ],
+    "featured": false
+  },
+  {
+    "id": "anointing-service-to-what-end",
+    "title": "Anointing Service: To What End",
+    "description": "ANOINTING SERVICE\nDATE: 06/9/2026 \nMINISTERING: HENRY DIMOKO\nMESSAGE: TO WHAT END\nBIBLE REFERENCE: Jn. 18:35-37.\n#graceflowministries\n#jesuschrist  #anointingservice  #churchofchrist",
+    "speaker": "Pastor Henry Dimoko",
+    "date": "2026-09-06",
+    "duration": 2500,
+    "durationFormatted": "41m",
+    "fileSizeBytes": 15246340,
+    "fileSizeFormatted": "14.5 MB",
+    "audioUrl": "https://pub-17e4bec755dc47afab7567bca3cee675.r2.dev/anointing-service-to-what-end.m4a",
+    "youtubeUrl": "https://www.youtube.com/watch?v=PQETUZqKEZc",
+    "series": "Anointing Service",
+    "tags": [
+      "Anointing Service",
+      "Sermon",
+      "Audio"
+    ],
+    "featured": false
+  },
+  {
     "id": "the-weight-of-remembrance",
     "title": "Breakthrough Service: The Weight of Remembrance",
     "description": "Breakthrough Service ministering on the spiritual significance of divine remembrance, moving from obscurity into divine favor. Scriptures: Judges 12:1-6, Psalm 106:4, Genesis 40:14, Matthew 25:23, Luke 23:42.",
@@ -12,23 +72,32 @@
     "audioUrl": "https://pub-17e4bec755dc47afab7567bca3cee675.r2.dev/the-weight-of-remembrance.m4a",
     "youtubeUrl": "https://www.youtube.com/watch?v=0N88TZX40Rg",
     "series": "Breakthrough Service",
-    "tags": ["Remembrance", "Breakthrough", "Favor", "Sunday Service"],
+    "tags": [
+      "Remembrance",
+      "Breakthrough",
+      "Favor",
+      "Sunday Service"
+    ],
     "featured": true
   },
   {
     "id": "the-mysterious-ways-of-gods-unusual-methods",
     "title": "The Mysterious Ways of God's Unusual Methods",
-    "description": "Powerful message examining how God works through unconventional channels and methods to confound the mighty and bring unexpected victory. Scripture: 1 Corinthians 1:26-28.",
+    "description": "BREAKTHROUGH SERVICE\nDATE: 30/8/2026 \nMINISTERING: HENRY DIMOKO\nMESSAGE: THE MYSTERIOUS WAYS OF GOD'S UNUSUAL METHODS\nBIBLE REFERENCE: 1 Corinthians 1:26-28.\n#graceflowministries\n#jesuschrist #breakthrough #churchofchrist #mystery #godstiming",
     "speaker": "Pastor Henry Dimoko",
     "date": "2026-08-30",
-    "duration": 6120,
-    "durationFormatted": "1h 42m",
-    "fileSizeBytes": 48960000,
-    "fileSizeFormatted": "46.7 MB",
-    "audioUrl": "/audio/mysterious-ways-unusual-methods.mp3",
-    "youtubeUrl": "https://www.youtube.com/@henrydimokoministries4431/streams",
+    "duration": 3620,
+    "durationFormatted": "1h 00m",
+    "fileSizeBytes": 22073487,
+    "fileSizeFormatted": "21.1 MB",
+    "audioUrl": "https://pub-17e4bec755dc47afab7567bca3cee675.r2.dev/the-mysterious-ways-of-gods-unusual-methods.m4a",
+    "youtubeUrl": "https://www.youtube.com/watch?v=sX2mv8hP1Z8",
     "series": "Breakthrough Service",
-    "tags": ["Unusual Methods", "Breakthrough", "Supernatural"],
+    "tags": [
+      "Breakthrough Service",
+      "Sermon",
+      "Audio"
+    ],
     "featured": false
   },
   {
@@ -44,7 +113,11 @@
     "audioUrl": "/audio/order-and-stewardship.mp3",
     "youtubeUrl": "https://www.youtube.com/@henrydimokoministries4431/streams",
     "series": "Mid-Week Revival",
-    "tags": ["Stewardship", "Order", "Mid-Week Revival"],
+    "tags": [
+      "Stewardship",
+      "Order",
+      "Mid-Week Revival"
+    ],
     "featured": false
   },
   {
@@ -60,7 +133,12 @@
     "audioUrl": "/audio/altar-of-ebenezer.mp3",
     "youtubeUrl": "https://www.youtube.com/@henrydimokoministries4431/streams",
     "series": "Communion Service",
-    "tags": ["Communion", "Ebenezer", "Victory", "Covenant"],
+    "tags": [
+      "Communion",
+      "Ebenezer",
+      "Victory",
+      "Covenant"
+    ],
     "featured": false
   },
   {
@@ -76,7 +154,11 @@
     "audioUrl": "/audio/key-of-knowledge.mp3",
     "youtubeUrl": "https://www.youtube.com/@henrydimokoministries4431/streams",
     "series": "Prophetic Service",
-    "tags": ["Knowledge", "Revelation", "Prophetic"],
+    "tags": [
+      "Knowledge",
+      "Revelation",
+      "Prophetic"
+    ],
     "featured": false
   },
   {
@@ -92,7 +174,11 @@
     "audioUrl": "/audio/the-unstoppable-harvest.mp3",
     "youtubeUrl": "https://www.youtube.com/@henrydimokoministries4431/streams",
     "series": "Breakthrough Service",
-    "tags": ["Harvest", "Fulfillment", "Sunday Service"],
+    "tags": [
+      "Harvest",
+      "Fulfillment",
+      "Sunday Service"
+    ],
     "featured": false
   }
 ]
