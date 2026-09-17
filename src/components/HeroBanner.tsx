@@ -68,7 +68,7 @@ export default function HeroBanner({ featuredSermon }: HeroBannerProps) {
               <div className="text-[11px] font-semibold uppercase tracking-wider text-amber-400 mb-1">
                 Latest Broadcast Spotlight
               </div>
-              <h2 className="text-base font-bold text-white truncate" title={featuredSermon.title}>
+              <h2 className="text-base sm:text-lg font-bold text-white line-clamp-2 break-words leading-snug" title={featuredSermon.title}>
                 {featuredSermon.title}
               </h2>
               <div className="text-xs text-neutral-400 mt-0.5">
