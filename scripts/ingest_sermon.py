@@ -108,19 +108,24 @@ def process_audio(
     bitrate: str = "64k",
     title: str = "Henry Dimoko Ministries Live",
     speaker: str = "Pastor Henry Dimoko",
+    fast_mode: bool = False,
 ):
-    """Download audio stream via yt-dlp. Uses FFmpeg if available, otherwise direct M4A stream."""
+    """Download audio stream via yt-dlp. Uses FFmpeg if available (unless fast_mode is True), otherwise direct M4A stream."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    if has_ffmpeg():
+    if has_ffmpeg() and not fast_mode:
         print(f"[*] FFmpeg detected. Downloading and encoding to normalized {bitrate} MP3...")
         temp_raw = output_path.with_suffix(".temp.webm")
         try:
-            # Download best audio stream
+            # Download best audio stream with resilient retry settings
             yt_cmd = ytdlp_cmd + [
                 "-f", "bestaudio[ext=m4a]/bestaudio/best",
                 "-o", str(temp_raw),
                 "--no-playlist",
+                "--retries", "20",
+                "--fragment-retries", "20",
+                "--retry-sleep", "5",
+                "--socket-timeout", "30",
                 youtube_url,
             ]
             subprocess.run(yt_cmd, check=True)
@@ -259,6 +264,7 @@ def main():
     parser.add_argument("--speaker", help="Speaker name", default="Pastor Henry Dimoko")
     parser.add_argument("--bitrate", help="Audio bitrate (default: 64k)", default="64k")
     parser.add_argument("--no-upload", action="store_true", help="Skip automatic R2 upload")
+    parser.add_argument("--fast", action="store_true", help="Fast native M4A direct download (bypass transcode)")
 
     args = parser.parse_args()
 
@@ -268,8 +274,10 @@ def main():
         sys.exit(1)
 
     print(f"[*] Using yt-dlp via: {' '.join(ytdlp_cmd)}")
-    if has_ffmpeg():
+    if has_ffmpeg() and not args.fast:
         print("[*] FFmpeg status: Available (full speech normalization and trimming enabled)")
+    elif args.fast:
+        print("[*] Fast mode enabled: Downloading native high-efficiency M4A stream directly")
     else:
         print("[*] FFmpeg status: Not found (native M4A direct download mode enabled)")
 
@@ -293,6 +301,7 @@ def main():
         bitrate=args.bitrate,
         title=title,
         speaker=args.speaker,
+        fast_mode=args.fast,
     )
 
     if not success or not final_audio_path.exists():
