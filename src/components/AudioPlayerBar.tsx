@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useAudioPlayer } from '@/context/AudioPlayerContext';
+import { downloadSermonAudio } from '@/types/sermon';
 import { formatSeconds } from '@/utils/format';
 import {
   Play,
@@ -38,10 +39,17 @@ export default function AudioPlayerBar() {
   } = useAudioPlayer();
 
   const [isDismissed, setIsDismissed] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   if (!currentSermon || isDismissed) {
     return null;
   }
+
+  const handleDownload = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!currentSermon || isDownloading) return;
+    await downloadSermonAudio(currentSermon.audioUrl, currentSermon.title, setIsDownloading);
+  };
 
   const effectiveDuration = duration || currentSermon.duration || 1;
   const progressPercent = Math.min(100, Math.max(0, (currentTime / effectiveDuration) * 100));
@@ -188,16 +196,20 @@ export default function AudioPlayerBar() {
             />
           </div>
 
-          {/* Direct Download Button */}
-          <a
-            href={currentSermon.audioUrl}
-            download={`${currentSermon.title.replace(/[^a-zA-Z0-9_-]/g, '_')}.m4a`}
-            className="p-1.5 sm:px-2.5 sm:py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white text-xs font-medium transition-colors flex items-center space-x-1 active:scale-95"
+          {/* Direct Download Button with Ministry Prefix */}
+          <button
+            onClick={handleDownload}
+            disabled={isDownloading}
+            className="p-1.5 sm:px-2.5 sm:py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white text-xs font-medium transition-colors flex items-center space-x-1 active:scale-95 disabled:opacity-60"
             title={`Download Audio (${currentSermon.fileSizeFormatted})`}
           >
-            <Download className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
-            <span className="hidden lg:inline text-[11px]">Download</span>
-          </a>
+            {isDownloading ? (
+              <div className="w-3.5 h-3.5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Download className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+            )}
+            <span className="hidden lg:inline text-[11px]">{isDownloading ? 'Saving...' : 'Download'}</span>
+          </button>
 
           {/* YouTube original link (desktop only) */}
           {currentSermon.youtubeUrl && (

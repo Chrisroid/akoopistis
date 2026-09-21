@@ -1,7 +1,7 @@
 'use client';
 
-import React from 'react';
-import { Sermon } from '@/types/sermon';
+import React, { useState } from 'react';
+import { Sermon, downloadSermonAudio } from '@/types/sermon';
 import { useAudioPlayer } from '@/context/AudioPlayerContext';
 import { Play, Pause, Download, Radio, ShieldCheck, Zap } from '@/components/icons';
 
@@ -11,6 +11,7 @@ interface HeroBannerProps {
 
 export default function HeroBanner({ featuredSermon }: HeroBannerProps) {
   const { currentSermon, status, playSermon, togglePlayPause } = useAudioPlayer();
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const isCurrent = featuredSermon && currentSermon?.id === featuredSermon.id;
   const isPlaying = isCurrent && status === 'playing';
@@ -22,6 +23,12 @@ export default function HeroBanner({ featuredSermon }: HeroBannerProps) {
     } else {
       playSermon(featuredSermon);
     }
+  };
+
+  const handleDownload = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!featuredSermon || isDownloading) return;
+    await downloadSermonAudio(featuredSermon.audioUrl, featuredSermon.title, setIsDownloading);
   };
 
   return (
@@ -94,14 +101,18 @@ export default function HeroBanner({ featuredSermon }: HeroBannerProps) {
                 )}
               </button>
 
-              <a
-                href={featuredSermon.audioUrl}
-                download={`${featuredSermon.title.replace(/[^a-zA-Z0-9_-]/g, '_')}.mp3`}
-                className="p-2.5 rounded-xl border border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-white transition-colors"
-                title={`Download MP3 (${featuredSermon.fileSizeFormatted})`}
+              <button
+                onClick={handleDownload}
+                disabled={isDownloading}
+                className="p-2.5 rounded-xl border border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-white transition-colors disabled:opacity-60"
+                title={`Download Audio (${featuredSermon.fileSizeFormatted})`}
               >
-                <Download className="w-4 h-4" />
-              </a>
+                {isDownloading ? (
+                  <div className="w-4 h-4 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4" />
+                )}
+              </button>
             </div>
           </div>
         )}
