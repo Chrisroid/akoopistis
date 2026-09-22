@@ -50,6 +50,7 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
           R2_PUBLIC_URL_PREFIX: ${{ secrets.R2_PUBLIC_URL_PREFIX }}
+          YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
         run: |
           BATCH="${{ github.event.inputs.batch_size }}"
           if [ -z "$BATCH" ]; then
@@ -59,6 +60,11 @@ jobs:
           echo "Launching Cloud Ingestion for $BATCH sermons"
           echo "=========================================="
           python scripts/bulk_ingest.py --count "$BATCH"
+
+      - name: Clean Temporary Secrets
+        if: always()
+        run: |
+          rm -f cookies.txt
 
       - name: Commit and Push Catalog Updates
         run: |
