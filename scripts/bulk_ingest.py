@@ -91,14 +91,36 @@ def get_cookies_arg():
     return []
 
 
+def get_ytdlp_extraction_args():
+    """
+    Return dynamic yt-dlp arguments based on presence of cookies.
+    - If cookies are present (cookies.txt or YOUTUBE_COOKIES):
+      Route through the web client with remote challenge solving enabled.
+    - If cookies are absent:
+      Use visionos,android client which bypasses bot detection unauthenticated.
+    """
+    cookie_args = get_cookies_arg()
+    if cookie_args:
+        return cookie_args + [
+            "-4",
+            "--socket-timeout", "30",
+            "--js-runtimes", "node",
+            "--remote-components", "ejs:github",
+            "--extractor-args", "youtube:player_client=web,default",
+        ]
+    else:
+        return [
+            "-4",
+            "--socket-timeout", "30",
+            "--js-runtimes", "node",
+            "--extractor-args", "youtube:player_client=visionos,android",
+        ]
+
+
 def extract_metadata(ytdlp_cmd: list, youtube_url: str):
     """Extract stream title, date, duration, and description using yt-dlp."""
     print(f"[*] Querying stream metadata from {youtube_url}...")
-    cmd = ytdlp_cmd + get_cookies_arg() + [
-        "-4",
-        "--socket-timeout", "30",
-        "--js-runtimes", "node",
-        "--extractor-args", "youtube:player_client=visionos,android",
+    cmd = ytdlp_cmd + get_ytdlp_extraction_args() + [
         "--dump-json",
         "--skip-download",
         "--no-playlist",
@@ -233,18 +255,14 @@ def process_audio(
         print(f"[*] FFmpeg detected. Downloading and encoding to normalized {bitrate} MP3...")
         temp_raw = output_path.with_suffix(".temp.webm")
         try:
-            # Download audio stream using visionos/android player client
-            yt_cmd = ytdlp_cmd + get_cookies_arg() + [
-                "-4",
-                "--js-runtimes", "node",
-                "--extractor-args", "youtube:player_client=visionos,android",
+            # Download audio stream using dynamic yt-dlp extraction profile
+            yt_cmd = ytdlp_cmd + get_ytdlp_extraction_args() + [
                 "-f", "bestaudio[ext=m4a]/bestaudio/best",
                 "-o", str(temp_raw),
                 "--no-playlist",
                 "--retries", "20",
                 "--fragment-retries", "20",
                 "--retry-sleep", "5",
-                "--socket-timeout", "30",
                 youtube_url,
             ]
             subprocess.run(yt_cmd, check=True)
@@ -285,11 +303,7 @@ def process_audio(
         actual_output = output_path.with_suffix(".m4a")
         print(f"[*] Downloading native high-efficiency M4A stream directly...")
         try:
-            yt_cmd = ytdlp_cmd + get_cookies_arg() + [
-                "-4",
-                "--js-runtimes", "node",
-                "--extractor-args", "youtube:player_client=visionos,android",
-                "--socket-timeout", "30",
+            yt_cmd = ytdlp_cmd + get_ytdlp_extraction_args() + [
                 "--retries", "10",
                 "-f", "139/140/bestaudio[ext=m4a]/bestaudio",
                 "-o", str(actual_output),
@@ -374,10 +388,8 @@ def update_catalog(sermon_data: dict, catalog_path: Path):
 def fetch_channel_streams(ytdlp_cmd, channel_url: str, limit: int = 150):
     """Scan recent streams from channel playlist."""
     print(f"[*] Scanning recent streams from {channel_url}...")
-    cmd = ytdlp_cmd + get_cookies_arg() + [
+    cmd = ytdlp_cmd + get_ytdlp_extraction_args() + [
         "--flat-playlist",
-        "--js-runtimes", "node",
-        "--extractor-args", "youtube:player_client=visionos,android",
         "--playlist-end", str(limit),
         "--dump-single-json",
         channel_url

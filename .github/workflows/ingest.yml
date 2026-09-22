@@ -43,6 +43,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Stage YouTube Authentication
+        env:
+          YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
+        run: |
+          if [ -n "$YOUTUBE_COOKIES" ]; then
+            printf "%s\n" "$YOUTUBE_COOKIES" > cookies.txt
+            echo "Cookie authentication staged successfully ($(wc -l < cookies.txt) lines)."
+          fi
+
       - name: Run Cloud Ingestion Engine
         env:
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
