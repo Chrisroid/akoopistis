@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """
-Henry Dimoko Ministries - Sermon Audio Ingestion Utility
+Henry Dimoko Ministries - Sermon Audio Ingestion Utility (Plan A Engine)
 
 Automates downloading, speech optimization, ID3 metadata tagging, and catalog registration
 for YouTube livestreams.
 
-Resilient architecture:
-- If FFmpeg is present: Trims dead air, normalizes speech volume (EBU R128), and downmixes to 64 kbps mono MP3.
-- If FFmpeg is absent: Gracefully falls back to downloading YouTube's native high-efficiency M4A audio stream directly.
+Features:
+- Android player API client routing to bypass YouTube bot detection and HTTP 429.
+- Intelligent title sanitization: cleans embedded DATE strings and extracts message names from descriptions.
+- Date-differentiated slugs and R2 object keys preventing file/record overwriting.
+- EBU R128 speech volume normalization and 64 kbps mono downmixing via FFmpeg.
+- Cloudflare R2 direct bucket upload and instant local temporary disk cleanup.
 """
 
 import argparse
@@ -17,6 +20,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -70,11 +74,12 @@ def format_file_size(bytes_size: int) -> str:
 
 
 def extract_metadata(ytdlp_cmd: list, youtube_url: str):
-    """Extract stream title, date, duration, and description using yt-dlp."""
+    """Extract stream title, date, duration, and description using yt-dlp via android client."""
     print(f"[*] Querying stream metadata from {youtube_url}...")
     cmd = ytdlp_cmd + [
         "-4",
         "--socket-timeout", "30",
+        "--extractor-args", "youtube:player_client=android",
         "--dump-json",
         "--skip-download",
         "--no-playlist",
@@ -99,6 +104,98 @@ def extract_metadata(ytdlp_cmd: list, youtube_url: str):
         return None
 
 
+def sanitize_metadata(raw_title: str, desc: str, upload_date_str: str, video_id: str):
+    """
+    Sanitize titles, parse dates, extract message topics, and classify series.
+    Returns: (cleaned_title, parsed_date, series, sermon_slug)
+    """
+    title = raw_title.strip()
+
+    # 1. Check for embedded DATE in title (e.g. 'SERVICEDATE: 19/12/2025' or 'DATE: 7/12/2025')
+    date_match = re.search(r"DATE\s*:\s*(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})", title, re.IGNORECASE)
+    parsed_date = None
+    date_readable = None
+    if date_match:
+        day, month, year = date_match.groups()
+        try:
+            dt = datetime(int(year), int(month), int(day))
+            parsed_date = dt.strftime("%Y-%m-%d")
+            date_readable = dt.strftime("%b %d, %Y")
+        except Exception:
+            pass
+        title = re.sub(r"DATE\s*:\s*\d{1,2}[/.-]\d{1,2}[/.-]\d{4}", "", title, flags=re.IGNORECASE).strip()
+
+    # Fallback to upload_date if no date was parsed from title
+    if not parsed_date and len(upload_date_str) == 8:
+        try:
+            dt = datetime.strptime(upload_date_str, "%Y%m%d")
+            parsed_date = dt.strftime("%Y-%m-%d")
+            date_readable = dt.strftime("%b %d, %Y")
+        except Exception:
+            pass
+    if not parsed_date:
+        parsed_date = datetime.now().strftime("%Y-%m-%d")
+        date_readable = datetime.now().strftime("%b %d, %Y")
+
+    # Normalize multiple whitespace and trailing colons/hyphens
+    title = re.sub(r"\s+", " ", title).strip(" :-")
+
+    # 2. Classify series
+    series = "Breakthrough Service"
+    upper_title = title.upper()
+    upper_desc = desc.upper()
+    if "ANOINTING" in upper_title or "ANOINTING" in upper_desc:
+        series = "Anointing Service"
+    elif "COMMUNION" in upper_title or "COMMUNION" in upper_desc:
+        series = "Communion Service"
+    elif "IMPARTATION" in upper_title or "IMPARTATION" in upper_desc:
+        series = "Impartation Service"
+    elif "REVIVAL" in upper_title or "REVIVAL" in upper_desc:
+        series = "Mid-Week Revival"
+    elif "THANKSGIVING" in upper_title:
+        series = "Thanksgiving Service"
+    elif "CROSSOVER" in upper_title:
+        series = "Crossover Service"
+    elif "EBENEZER" in upper_title:
+        series = "Ebenezer Convention"
+    elif "JUDGEMENTAL" in upper_title or "JUDGMENTAL" in upper_title:
+        series = "Judgemental Service"
+
+    # 3. Extract clean message title from description if present
+    message_title = None
+    for line in desc.splitlines()[:20]:
+        m = re.search(r"(?:MESSAGE|TOPIC|THEME)\s*[:\-]\s*(.+)", line, re.IGNORECASE)
+        if m:
+            cand = m.group(1).strip()
+            if len(cand) > 3 and not re.match(r"^(date|time|venue|pastor|ministering)", cand, re.IGNORECASE):
+                cand = re.sub(r"\s*\(.*?\)", "", cand).strip()
+                if cand:
+                    message_title = cand
+                    break
+
+    # 4. Construct polished title
+    generic_titles = {
+        "BREAKTHROUGH SERVICE", "SUNDAY BREAKTHROUGH SERVICE",
+        "COMMUNION SERVICE", "MID-WEEK REVIVAL SERVICE", "REVIVAL SERVICE",
+        "ANOINTING SERVICE", "SUNDAY ANOINTING SERVICE",
+        "IMPARTATION SERVICE", "EARLY WILL I SEEK THEE", "JUDGEMENTAL SERVICE"
+    }
+
+    if message_title:
+        final_title = f"{series}: {message_title}"
+    elif title.upper() in generic_titles:
+        final_title = f"{title.title()} ({date_readable})"
+    else:
+        final_title = title.title()
+
+    # Generate slug with date and short video ID to guarantee absolute uniqueness
+    short_vid = re.sub(r"[^a-zA-Z0-9]", "", video_id)[:6].lower()
+    base_slug = slugify(final_title)
+    sermon_slug = f"{base_slug}-{parsed_date}-{short_vid}"
+
+    return final_title, parsed_date, series, sermon_slug
+
+
 def process_audio(
     ytdlp_cmd: list,
     youtube_url: str,
@@ -110,15 +207,17 @@ def process_audio(
     speaker: str = "Pastor Henry Dimoko",
     fast_mode: bool = False,
 ):
-    """Download audio stream via yt-dlp. Uses FFmpeg if available (unless fast_mode is True), otherwise direct M4A stream."""
+    """Download audio stream via yt-dlp with android player client routing and EBU R128 speech normalization."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     if has_ffmpeg() and not fast_mode:
         print(f"[*] FFmpeg detected. Downloading and encoding to normalized {bitrate} MP3...")
         temp_raw = output_path.with_suffix(".temp.webm")
         try:
-            # Download best audio stream with resilient retry settings
+            # Download audio stream using android player client to bypass 429
             yt_cmd = ytdlp_cmd + [
+                "-4",
+                "--extractor-args", "youtube:player_client=android",
                 "-f", "bestaudio[ext=m4a]/bestaudio/best",
                 "-o", str(temp_raw),
                 "--no-playlist",
@@ -164,12 +263,11 @@ def process_audio(
     else:
         # Graceful fallback: Native M4A download without FFmpeg
         actual_output = output_path.with_suffix(".m4a")
-        print(f"[*] FFmpeg not installed. Downloading native high-efficiency M4A stream directly...")
-        print(f"[*] Target destination: {actual_output}")
+        print(f"[*] Downloading native high-efficiency M4A stream directly...")
         try:
-            # Format 140 is standard 128k AAC; format 139 is ultra-low 49k AAC
             yt_cmd = ytdlp_cmd + [
                 "-4",
+                "--extractor-args", "youtube:player_client=android",
                 "--socket-timeout", "30",
                 "--retries", "10",
                 "-f", "139/140/bestaudio[ext=m4a]/bestaudio",
@@ -252,11 +350,12 @@ def update_catalog(sermon_data: dict, catalog_path: Path):
     print(f"[SUCCESS] Catalog written to {catalog_path}")
 
 
-def fetch_channel_streams(ytdlp_cmd, channel_url: str, limit: int = 120):
+def fetch_channel_streams(ytdlp_cmd, channel_url: str, limit: int = 150):
     """Scan recent streams from channel playlist."""
     print(f"[*] Scanning recent streams from {channel_url}...")
     cmd = ytdlp_cmd + [
         "--flat-playlist",
+        "--extractor-args", "youtube:player_client=android",
         "--playlist-end", str(limit),
         "--dump-single-json",
         channel_url
@@ -277,7 +376,7 @@ def fetch_channel_streams(ytdlp_cmd, channel_url: str, limit: int = 120):
 
 
 def process_bulk_entry(ytdlp_cmd, entry: dict, project_root: Path, catalog_path: Path):
-    """Process a single video entry from the channel list."""
+    """Process a single video entry from the channel list using Plan A metadata sanitation."""
     video_id = entry.get("id")
     if not video_id:
         return False
@@ -294,42 +393,24 @@ def process_bulk_entry(ytdlp_cmd, entry: dict, project_root: Path, catalog_path:
 
     raw_title = meta.get("title", "HDM Live Broadcast")
     desc = meta.get("description", "")
+    upload_date_str = meta.get("upload_date", "")
 
-    # Classify series
-    series = "Breakthrough Service"
-    upper_title = raw_title.upper()
-    upper_desc = desc.upper()
-    if "ANOINTING" in upper_title or "ANOINTING" in upper_desc:
-        series = "Anointing Service"
-    elif "COMMUNION" in upper_title or "COMMUNION" in upper_desc:
-        series = "Communion Service"
-    elif "IMPARTATION" in upper_title or "IMPARTATION" in upper_desc:
-        series = "Impartation Service"
-    elif "REVIVAL" in upper_title or "REVIVAL" in upper_desc:
-        series = "Mid-Week Revival"
+    # Plan A metadata sanitization & collision-free slug generation
+    final_title, parsed_date, series, sermon_slug = sanitize_metadata(
+        raw_title=raw_title,
+        desc=desc,
+        upload_date_str=upload_date_str,
+        video_id=video_id
+    )
 
-    # Extract clean message title if present
-    message_title = None
-    for line in desc.splitlines()[:15]:
-        m = re.search(r"MESSAGE[:\s-]+(.+)", line, re.IGNORECASE)
-        if m:
-            candidate = m.group(1).strip()
-            if candidate and len(candidate) > 3:
-                message_title = candidate
-                break
-
-    if message_title:
-        title = f"{series}: {message_title}"
-    else:
-        title = raw_title.strip()
-
-    sermon_slug = slugify(title)
     temp_dir = project_root / "temp_audio"
     temp_dir.mkdir(parents=True, exist_ok=True)
     target_audio_path = temp_dir / f"{sermon_slug}.mp3"
 
     print(f"\n=======================================================")
-    print(f"[>] Ingesting: {title} ({format_duration(duration)})")
+    print(f"[>] Ingesting: {final_title}")
+    print(f"[>] Duration: {format_duration(duration)} | Series: {series}")
+    print(f"[>] Slug/R2 Key: {sermon_slug}.mp3")
     print(f"=======================================================")
 
     success, final_audio_path = process_audio(
@@ -337,13 +418,13 @@ def process_bulk_entry(ytdlp_cmd, entry: dict, project_root: Path, catalog_path:
         youtube_url=video_url,
         output_path=target_audio_path,
         bitrate="64k",
-        title=title,
+        title=final_title,
         speaker="Pastor Henry Dimoko",
         fast_mode=False,
     )
 
     if not success or not final_audio_path.exists():
-        print(f"[WARN] Ingestion failed for {title}")
+        print(f"[WARN] Ingestion failed for {final_title}")
         return False
 
     file_size_bytes = final_audio_path.stat().st_size
@@ -357,16 +438,10 @@ def process_bulk_entry(ytdlp_cmd, entry: dict, project_root: Path, catalog_path:
         final_audio_path.unlink()
         print(f"[*] Cleaned up local temp file: {final_audio_path.name}")
 
-    upload_date_str = meta.get("upload_date", "")
-    if len(upload_date_str) == 8:
-        parsed_date = f"{upload_date_str[:4]}-{upload_date_str[4:6]}-{upload_date_str[6:]}"
-    else:
-        parsed_date = datetime.now().strftime("%Y-%m-%d")
-
     sermon_record = {
         "id": sermon_slug,
-        "title": title,
-        "description": meta.get("description", "").strip()[:300] or "Live sermon broadcast.",
+        "title": final_title,
+        "description": desc.strip()[:300] or f"Live sermon broadcast by Pastor Henry Dimoko for {series}.",
         "speaker": "Pastor Henry Dimoko",
         "date": parsed_date,
         "duration": duration,
@@ -381,12 +456,12 @@ def process_bulk_entry(ytdlp_cmd, entry: dict, project_root: Path, catalog_path:
     }
 
     update_catalog(sermon_record, catalog_path)
-    print(f"[SUCCESS] Registered and uploaded: {title}")
+    print(f"[SUCCESS] Registered and uploaded: {final_title}")
     return True
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Henry Dimoko Ministries - 50-Sermon Bulk Ingestion Engine")
+    parser = argparse.ArgumentParser(description="Henry Dimoko Ministries - 50-Sermon Bulk Ingestion Engine (Plan A)")
     parser.add_argument("--count", type=int, default=50, help="Number of new sermons to ingest (default: 50)")
     parser.add_argument("--dry-run", action="store_true", help="Preview candidate streams without downloading")
     args = parser.parse_args()
@@ -417,7 +492,8 @@ def main():
 
     # 2. Fetch recent streams from the channel
     channel_url = "https://www.youtube.com/@henrydimokoministries4431/streams"
-    all_entries = fetch_channel_streams(ytdlp_cmd, channel_url, limit=args.count + 50)
+    scan_limit = max(args.count + len(existing_ids) + 40, 160)
+    all_entries = fetch_channel_streams(ytdlp_cmd, channel_url, limit=scan_limit)
 
     # 3. Filter candidates
     candidates = []
@@ -436,11 +512,13 @@ def main():
     print(f"\n[*] Found {len(candidates)} new candidate streams ready for ingestion.")
 
     if args.dry_run:
-        print("\n=== DRY RUN PREVIEW (Top Candidates) ===")
+        print("\n=== DRY RUN PREVIEW (Top Candidates under Plan A) ===")
         for i, c in enumerate(candidates, 1):
             dur = format_duration(c.get("duration") or 0) if c.get("duration") else "Unknown"
-            print(f"[{i:02d}] ID: {c.get('id')} | Duration: {dur} | Title: {c.get('title')}")
-        print("=========================================\n")
+            raw_t = c.get("title", "")
+            cleaned_t, p_date, ser, sl = sanitize_metadata(raw_t, "", "", c.get("id"))
+            print(f"[{i:02d}] ID: {c.get('id')} | Dur: {dur} | Title: {cleaned_t} | Slug: {sl}")
+        print("====================================================\n")
         return
 
     # 4. Process each candidate sequentially
@@ -459,9 +537,11 @@ def main():
                     "timestamp": datetime.now().isoformat()
                 }, sf, indent=2)
 
+        # Respectful delay between network extractions
+        time.sleep(3)
+
     print(f"\n[ALL DONE] Bulk processing finished. Successfully added {success_count} sermons!")
 
 
 if __name__ == "__main__":
     main()
-
