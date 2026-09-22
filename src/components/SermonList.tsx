@@ -207,7 +207,7 @@ export default function SermonList({ initialSermons }: SermonListProps) {
                 <span className="font-semibold text-white">{totalPages}</span>
               </div>
 
-              <div className="flex items-center gap-1.5">
+              <div className="flex flex-wrap items-center justify-center gap-1.5 max-w-full">
                 <button
                   onClick={() => handlePageChange(safePage - 1)}
                   disabled={safePage === 1}
@@ -218,7 +218,7 @@ export default function SermonList({ initialSermons }: SermonListProps) {
                   <span className="hidden sm:inline">Previous</span>
                 </button>
 
-                <div className="flex items-center gap-1">
+                <div className="flex flex-wrap items-center justify-center gap-1">
                   {pageNumbers.map((page, idx) => {
                     if (page === '...') {
                       return (
