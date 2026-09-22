@@ -74,12 +74,13 @@ def format_file_size(bytes_size: int) -> str:
 
 
 def extract_metadata(ytdlp_cmd: list, youtube_url: str):
-    """Extract stream title, date, duration, and description using yt-dlp via android client."""
+    """Extract stream title, date, duration, and description using yt-dlp via visionos/android client."""
     print(f"[*] Querying stream metadata from {youtube_url}...")
     cmd = ytdlp_cmd + [
         "-4",
         "--socket-timeout", "30",
-        "--extractor-args", "youtube:player_client=android",
+        "--js-runtimes", "node",
+        "--extractor-args", "youtube:player_client=visionos,android",
         "--dump-json",
         "--skip-download",
         "--no-playlist",
@@ -214,10 +215,11 @@ def process_audio(
         print(f"[*] FFmpeg detected. Downloading and encoding to normalized {bitrate} MP3...")
         temp_raw = output_path.with_suffix(".temp.webm")
         try:
-            # Download audio stream using android player client to bypass 429
+            # Download audio stream using visionos/android player client
             yt_cmd = ytdlp_cmd + [
                 "-4",
-                "--extractor-args", "youtube:player_client=android",
+                "--js-runtimes", "node",
+                "--extractor-args", "youtube:player_client=visionos,android",
                 "-f", "bestaudio[ext=m4a]/bestaudio/best",
                 "-o", str(temp_raw),
                 "--no-playlist",
@@ -355,7 +357,8 @@ def fetch_channel_streams(ytdlp_cmd, channel_url: str, limit: int = 150):
     print(f"[*] Scanning recent streams from {channel_url}...")
     cmd = ytdlp_cmd + [
         "--flat-playlist",
-        "--extractor-args", "youtube:player_client=android",
+        "--js-runtimes", "node",
+        "--extractor-args", "youtube:player_client=visionos,android",
         "--playlist-end", str(limit),
         "--dump-single-json",
         channel_url
@@ -492,7 +495,7 @@ def main():
 
     # 2. Fetch recent streams from the channel
     channel_url = "https://www.youtube.com/@henrydimokoministries4431/streams"
-    scan_limit = max(args.count + len(existing_ids) + 40, 160)
+    scan_limit = max(args.count + len(existing_ids) + 80, 250)
     all_entries = fetch_channel_streams(ytdlp_cmd, channel_url, limit=scan_limit)
 
     # 3. Filter candidates
