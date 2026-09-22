@@ -6,14 +6,15 @@ on:
       batch_size:
         description: "Number of sermons to ingest in this run"
         required: true
-        default: "10"
+        default: "50"
         type: string
   schedule:
-    # Runs automatically every night at 2:00 AM UTC
-    - cron: "0 2 * * *"
+    # Autonomous batch execution: runs every 3 hours to ingest in batches of 50
+    - cron: "0 */3 * * *"
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   ingest:
@@ -53,6 +54,7 @@ jobs:
           fi
 
       - name: Run Cloud Ingestion Engine
+        id: ingest
         env:
           R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
@@ -63,7 +65,7 @@ jobs:
         run: |
           BATCH="${{ github.event.inputs.batch_size }}"
           if [ -z "$BATCH" ]; then
-            BATCH="25"
+            BATCH="50"
           fi
           echo "=========================================="
           echo "Launching Cloud Ingestion for $BATCH sermons"
@@ -77,12 +79,25 @@ jobs:
 
       - name: Commit and Push Catalog Updates
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "Christian Asarhasa"
+          git config --global user.email "56808916+Chrisroid@users.noreply.github.com"
           git add data/sermons.json data/bulk_state.json
           if git diff --staged --quiet; then
             echo "No new sermons to commit."
           else
-            git commit -m "feat(catalog): cloud ingest sermons via GitHub Actions"
+            COUNT="${{ steps.ingest.outputs.ingested }}"
+            if [ -z "$COUNT" ]; then
+              COUNT="50"
+            fi
+            git commit -m "feat(catalog): cloud ingest $COUNT sermons via GitHub Actions"
             git push origin main
           fi
+
+      - name: Trigger Next Batch
+        if: success() && steps.ingest.outputs.remaining > 0 && steps.ingest.outputs.ingested > 0
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Remaining eligible sermons: ${{ steps.ingest.outputs.remaining }}"
+          echo "Attempting autonomous workflow dispatch for next batch..."
+          gh workflow run ingest.yml --ref main -f batch_size=50 || echo "Self-dispatch note: A personal access token (PAT_TOKEN) enables instant chaining. Scheduled cron (every 3 hours) will pick up the next 50-sermon batch automatically."

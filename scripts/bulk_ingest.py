@@ -526,7 +526,7 @@ def main():
 
     # 2. Fetch recent streams from the channel
     channel_url = "https://www.youtube.com/@henrydimokoministries4431/streams"
-    scan_limit = max(args.count + len(existing_ids) + 80, 250)
+    scan_limit = max(args.count + len(existing_ids) + 150, 1000)
     all_entries = fetch_channel_streams(ytdlp_cmd, channel_url, limit=scan_limit)
 
     # 3. Filter candidates
@@ -574,7 +574,26 @@ def main():
         # Respectful delay between network extractions
         time.sleep(3)
 
+    # Calculate remaining eligible streams across the channel
+    total_eligible = sum(
+        1 for e in all_entries
+        if e.get("id") and e.get("id") not in existing_ids
+        and (e.get("duration") is None or e.get("duration") >= 1200)
+    )
+    remaining_count = max(total_eligible - success_count, 0)
+
     print(f"\n[ALL DONE] Bulk processing finished. Successfully added {success_count} sermons!")
+    print(f"[*] Remaining eligible livestreams on channel: {remaining_count}")
+
+    # Emit output variables for GitHub Actions workflow orchestration
+    gh_output = os.getenv("GITHUB_OUTPUT")
+    if gh_output:
+        try:
+            with open(gh_output, "a", encoding="utf-8") as gf:
+                gf.write(f"ingested={success_count}\n")
+                gf.write(f"remaining={remaining_count}\n")
+        except Exception as e:
+            print(f"[WARN] Failed to write to GITHUB_OUTPUT: {e}")
 
 
 if __name__ == "__main__":
