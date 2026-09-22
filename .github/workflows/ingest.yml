@@ -1,0 +1,73 @@
+name: Cloud Sermon Ingestion
+
+on:
+  workflow_dispatch:
+    inputs:
+      batch_size:
+        description: "Number of sermons to ingest in this run"
+        required: true
+        default: "10"
+        type: string
+  schedule:
+    # Runs automatically every night at 2:00 AM UTC
+    - cron: "0 2 * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  ingest:
+    name: Ingest & Speech-Normalize Sermons
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install FFmpeg & System Audio Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install yt-dlp boto3 python-dotenv
+
+      - name: Run Cloud Ingestion Engine
+        env:
+          R2_ENDPOINT_URL: ${{ secrets.R2_ENDPOINT_URL }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+          R2_PUBLIC_URL_PREFIX: ${{ secrets.R2_PUBLIC_URL_PREFIX }}
+        run: |
+          BATCH="${{ github.event.inputs.batch_size }}"
+          if [ -z "$BATCH" ]; then
+            BATCH="25"
+          fi
+          echo "=========================================="
+          echo "Launching Cloud Ingestion for $BATCH sermons"
+          echo "=========================================="
+          python scripts/bulk_ingest.py --count "$BATCH"
+
+      - name: Commit and Push Catalog Updates
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/sermons.json data/bulk_state.json
+          if git diff --staged --quiet; then
+            echo "No new sermons to commit."
+          else
+            git commit -m "feat(catalog): cloud ingest sermons via GitHub Actions"
+            git push origin main
+          fi
